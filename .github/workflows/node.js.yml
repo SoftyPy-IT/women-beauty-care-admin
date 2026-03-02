@@ -1,0 +1,45 @@
+name: Deploy React App
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "16"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Copy .env.example to .env
+        run: cp .env.production .env
+
+      - name: Build React app
+        run: npm run build
+
+      - name: Debug build directory
+        run: ls -la ./dist
+
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+
+      - name: Deploy to VPS
+        run: |
+          mkdir -p ~/.ssh
+          echo -e "Host ${{ secrets.SSH_HOST }}\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
+
+          # Use sshpass with rsync to deploy
+          sshpass -p '${{ secrets.SSH_PASSWORD }}' rsync -avz --delete ./dist/ .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/var/www/html/neelabh/admin
+
+          # Reload Nginx
+          sshpass -p '${{ secrets.SSH_PASSWORD }}' ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "sudo systemctl reload nginx"
